@@ -13,7 +13,11 @@ llm = OpenAI(
     base_url=base_url,
 )
 
-metadata_filepath = 'current_metadata_official_urls.csv'
+metadata_filepath = 'current_metadata_official_urls_new.csv'
+metadata_df = pd.read_csv(metadata_filepath)
+metadata_df = metadata_df[~metadata_df['newMeasureID'].isna()]
+metadata_df.set_index('newMeasureID', inplace=True)
+metadata_json = metadata_df.to_json(orient='index', indent=2)
 
 results = {}
 system_prompt = """
@@ -28,26 +32,26 @@ system_prompt = """
 
 prompt = 'What data measures are available for tracking drug overdose fatalities?'
 
-with open(metadata_filepath, 'r') as file:
-    file_content = file.read()
-    try:
-        completion = llm.chat.completions.create(
-            model="DeepSeek-R1",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": [
-                    {"type": "text",
-                     "text": f"{prompt}\n"},
-                    {"type": "text",
-                     "text": f"[file name]: {metadata_filepath}\n[file content begin]{file_content}[file content end]"}
-                ]},
-            ],
-            stream=True
-        )
-        for chunk in completion:
-            if chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content is not None:
-                    print(content, end="", flush=True)
-    except Exception as e:
-        print(f"ERROR: {e}")
+# with open(metadata_filepath, 'r') as file:
+#     file_content = file.read()
+try:
+    completion = llm.chat.completions.create(
+        model="DeepSeek-R1",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": [
+                {"type": "text",
+                 "text": f"{prompt}\n"},
+                {"type": "text",
+                 "text": f"[file name]: {metadata_filepath[:-4]+'.json'}\n[file content begin]{metadata_json}[file content end]"}
+            ]},
+        ],
+        stream=True
+    )
+    for chunk in completion:
+        if chunk.choices:
+            content = chunk.choices[0].delta.content
+            if content is not None:
+                print(content, end="", flush=True)
+except Exception as e:
+    print(f"ERROR: {e}")

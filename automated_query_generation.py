@@ -33,7 +33,7 @@ def generate_prompts(input_filepath, output_filepath):
         for line in file:
             topic = line.strip()
             completion = llm.chat.completions.create(
-                model="deepseek",
+                model="DeepSeek-R1",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": [
@@ -78,7 +78,7 @@ def filter_prompts(input_filepath, output_filepath):
     with open(input_filepath, 'r') as file:
         file_content = file.read()
         completion = llm.chat.completions.create(
-            model="deepseek",
+            model="DeepSeek-R1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": [
@@ -116,7 +116,7 @@ def format_prompt_evaluation(prompt, response):
     """Formats a single prompt-response pair."""
     return f"PROMPT:\n{prompt}\n\nEVALUATION:\n{response}\n\n{'='*40}\n"
 
-def test_prompts(input_filepath, output_filepath, metadata_filepath):
+def test_prompts(input_filepath, output_filepath, metadata_json):
     with open(input_filepath, 'r') as file:
         data = json.load(file)
     results = {}
@@ -130,39 +130,39 @@ def test_prompts(input_filepath, output_filepath, metadata_filepath):
                     dashboard URLs for each of those as well.
     """
 
-    with open(metadata_filepath, 'r') as file:
-        file_content = file.read()
-        for prompt_dict in data:
-            prompt = prompt_dict['prompt']
-            print(prompt)
-            try:
-                completion = llm.chat.completions.create(
-                    model="deepseek",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": [
-                            {"type": "text",
-                             "text": f"{prompt}\n"},
-                            {"type": "text",
-                             "text": f"[file name]: {metadata_filepath}\n[file content begin]{file_content}[file content end]"}
-                        ]},
-                    ],
-                    stream=True
-                )
-                all_content = ''
-                for chunk in completion:
-                    if chunk.choices:
-                        content = chunk.choices[0].delta.content
-                        if content is not None:
-                            all_content += content
-                match = re.search(r"</think>(.*)", all_content, re.DOTALL)
-                if match:
-                    response = match.group(1).strip()
-                    results[prompt] = response
-                else:
-                    results[prompt] = 'No response found'
-            except Exception as e:
-                results[prompt] = e
+    # with open(metadata_filepath, 'r') as file:
+    #     file_content = file.read()
+    for prompt_dict in data:
+        prompt = prompt_dict['prompt']
+        print(prompt)
+        try:
+            completion = llm.chat.completions.create(
+                model="DeepSeek-R1",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": [
+                        {"type": "text",
+                         "text": f"{prompt}\n"},
+                        {"type": "text",
+                         "text": f"[file name]: metadata.json\n[file content begin]{metadata_json}[file content end]"}
+                    ]},
+                ],
+                stream=True
+            )
+            all_content = ''
+            for chunk in completion:
+                if chunk.choices:
+                    content = chunk.choices[0].delta.content
+                    if content is not None:
+                        all_content += content
+            match = re.search(r"</think>(.*)", all_content, re.DOTALL)
+            if match:
+                response = match.group(1).strip()
+                results[prompt] = response
+            else:
+                results[prompt] = 'No response found'
+        except Exception as e:
+            results[prompt] = e
     with open(output_filepath, 'w', encoding='utf-8') as f:
         for prompt, response in results.items():
             formatted_entry = format_prompt_response(prompt, response)
@@ -220,7 +220,7 @@ def read_prompt_response_pairs(filepath):
         print(f"Error: File not found at '{filepath}'")
         return
 
-def evaluate_prompts(input_filepath, output_filepath, metadata_filepath):
+def evaluate_prompts(input_filepath, output_filepath, metadata_json):
     results = []
     system_prompt = """
                     Your job is to evaluate a prompt/response pair to determine if the response is adequate.
@@ -235,51 +235,51 @@ def evaluate_prompts(input_filepath, output_filepath, metadata_filepath):
                     [{'question':'1', 'answer':'yes', 'justification':'...'}, {'question':'2', 'answer':'no', 'justification':'...'}, ...]
                     Ensure that this JSON object is enclosed in json``` ``` tags.
     """
-    with open(metadata_filepath, 'r') as file:
-        file_content = file.read()
-        for prompt, response in read_prompt_response_pairs(input_filepath):
-            print(prompt)
-            try:
-                completion = llm.chat.completions.create(
-                    model="deepseek",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": [
-                            {"type": "text",
-                             "text": f"PROMPT: {prompt}\nRESPONSE: {response}\n"},
-                            {"type": "text",
-                             "text": f"[file name]: {metadata_filepath}\n[file content begin]{file_content}[file content end]"}
-                        ]},
-                    ],
-                    stream=True
-                )
-                all_content = ''
-                for chunk in completion:
-                    if chunk.choices:
-                        content = chunk.choices[0].delta.content
-                        if content is not None:
-                            all_content += content
-                match = re.search(r"</think>(.*)", all_content, re.DOTALL)
-                if match:
-                    evaluation = match.group(1).strip()
-                    json_match = re.search(r"```json\s*(\[[\s\S]*?\])\s*```", evaluation)
-                    if json_match:
-                        json_string = json_match.group(1)
-                        try:
-                            data = json.loads(json_string)
-                            final_dict = {}
-                            final_dict['prompt'] = prompt
-                            final_dict['response'] = response
-                            final_dict['evaluation'] = data
-                            results.append(final_dict)
-                        except json.JSONDecodeError as e:
-                            results.append({'prompt':prompt, 'response':response, 'error':str(e)})
-                    else:
-                        results.append({'prompt': prompt, 'response': response, 'error': "No JSON object found enclosed in ```json ... ```"})
+    # with open(metadata_filepath, 'r') as file:
+    #     file_content = file.read()
+    for prompt, response in read_prompt_response_pairs(input_filepath):
+        print(prompt)
+        try:
+            completion = llm.chat.completions.create(
+                model="DeepSeek-R1",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": [
+                        {"type": "text",
+                         "text": f"PROMPT: {prompt}\nRESPONSE: {response}\n"},
+                        {"type": "text",
+                         "text": f"[file name]: metadata.json\n[file content begin]{metadata_json}[file content end]"}
+                    ]},
+                ],
+                stream=True
+            )
+            all_content = ''
+            for chunk in completion:
+                if chunk.choices:
+                    content = chunk.choices[0].delta.content
+                    if content is not None:
+                        all_content += content
+            match = re.search(r"</think>(.*)", all_content, re.DOTALL)
+            if match:
+                evaluation = match.group(1).strip()
+                json_match = re.search(r"```json\s*(\[[\s\S]*?\])\s*```", evaluation)
+                if json_match:
+                    json_string = json_match.group(1)
+                    try:
+                        data = json.loads(json_string)
+                        final_dict = {}
+                        final_dict['prompt'] = prompt
+                        final_dict['response'] = response
+                        final_dict['evaluation'] = data
+                        results.append(final_dict)
+                    except json.JSONDecodeError as e:
+                        results.append({'prompt':prompt, 'response':response, 'error':str(e)})
                 else:
-                    results.append({'prompt':prompt, 'response':response, 'error':'No evaluation found'})
-            except Exception as e:
-                results.append({'prompt':prompt, 'response':response, 'error':str(e)})
+                    results.append({'prompt': prompt, 'response': response, 'error': "No JSON object found enclosed in ```json ... ```"})
+            else:
+                results.append({'prompt':prompt, 'response':response, 'error':'No evaluation found'})
+        except Exception as e:
+            results.append({'prompt':prompt, 'response':response, 'error':str(e)})
     # with open(output_filepath, 'w', encoding='utf-8') as f:
     #     for prompt, response in results.items():
     #         formatted_entry = format_prompt_evaluation(prompt, response)
@@ -311,16 +311,21 @@ topics_file = 'topics.txt'
 prompts_file = 'prompts_noisy.json'
 prompts_filtered_file = 'prompts_noisy_filtered.json'
 response_file = 'prompt_output_noisy.txt'
-metadata_file = 'current_metadata_official_urls.csv'
-evaluation_file = 'output_evaluation_noisy.json'
-metrics_file = 'output_evaluation_scores_noisy.csv'
+metadata_file = 'current_metadata_official_urls_new.csv'
+evaluation_file = 'output_evaluation_noisy_with_json_metadata.json'
+metrics_file = 'output_evaluation_scores_noisy_with_json_metadata.csv'
+
+metadata_df = pd.read_csv(metadata_file)
+metadata_df = metadata_df[~metadata_df['newMeasureID'].isna()]
+metadata_df.set_index('newMeasureID', inplace=True)
+metadata_json = metadata_df.to_json(orient='index', indent=2)
 
 print('generating')
-generate_prompts(topics_file, prompts_file)
+#generate_prompts(topics_file, prompts_file)
 print('filtering')
-filter_prompts(prompts_file, prompts_filtered_file)
+#filter_prompts(prompts_file, prompts_filtered_file)
 print('testing')
-test_prompts(prompts_filtered_file, response_file, metadata_file)
+test_prompts(prompts_filtered_file, response_file, metadata_json)
 print('evaluating')
-evaluate_prompts(response_file, evaluation_file, metadata_file)
+evaluate_prompts(response_file, evaluation_file, metadata_json)
 tally_results(evaluation_file)
